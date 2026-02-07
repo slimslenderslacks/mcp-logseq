@@ -1,0 +1,54 @@
+FROM golang:1.23-bookworm AS go-builder
+
+WORKDIR /build
+
+# Copy Go module files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy Go source
+COPY main.go ./
+
+# Build the MCP server
+RUN CGO_ENABLED=0 GOOS=linux go build -o mcp-logseq-server .
+
+# Final stage - based on Node.js for script execution
+FROM node:20.10.0
+
+# Install git and curl for cloning and health checks
+RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Clone logseq repository
+RUN git clone --depth 1 https://github.com/logseq/logseq.git /app/logseq
+
+# Install dependencies in logseq/deps/graph-parser
+WORKDIR /app/logseq/deps/graph-parser
+RUN npm install
+
+# Copy mcp-logseq project files
+WORKDIR /app/mcp-logseq
+COPY package*.json ./
+COPY run-script.sh ./
+COPY scripts/ ./scripts/
+COPY deps/ ./deps/
+
+# Copy missing fractional-indexing file to logseq (not in official GitHub repo)
+RUN mkdir -p /app/logseq/src/logseq && \
+    cp ./deps/logseq/clj_fractional_indexing.cljc /app/logseq/src/logseq/
+
+# Install mcp-logseq dependencies
+RUN npm install
+
+# Make run-script.sh executable
+RUN chmod +x run-script.sh
+
+# Copy the compiled Go MCP server from builder
+COPY --from=go-builder /build/mcp-logseq-server /usr/local/bin/mcp-logseq-server
+
+# Set environment variable for API host
+ENV LOGSEQ_API_HOST=host.docker.internal
+
+# Use the MCP server as entrypoint
+ENTRYPOINT ["mcp-logseq-server"]

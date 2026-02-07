@@ -4,13 +4,16 @@
   (:require [nbb.core :as nbb]
             [promesa.core :as p]))
 
-(def api-host (or (.-LOGSEQ_API_HOST js/process.env) "localhost"))
+(def api-host (or (.-LOGSEQ_API_HOST js/process.env) "host.docker.internal"))
+(def api-port (or (.-LOGSEQ_API_PORT js/process.env) "12315"))
+(def api-token (.-LOGSEQ_API_AUTHORIZATION_TOKEN js/process.env))
 
 (defn api-call [method args]
-  (p/let [response (js/fetch (str "http://" api-host ":12315/api")
+  (p/let [headers (cond-> #js {"Content-Type" "application/json"}
+                    api-token (doto (aset "Authorization" (str "Bearer " api-token))))
+          response (js/fetch (str "http://" api-host ":" api-port "/api")
                              #js {:method "POST"
-                                  :headers #js {"Content-Type" "application/json"
-                                              "Authorization" "Bearer whatever"}
+                                  :headers headers
                                   :body (js/JSON.stringify
                                          #js {:method method
                                               :args (clj->js args)})})

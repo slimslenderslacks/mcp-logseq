@@ -1,0 +1,64 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.slimslenderslacks/mcp-logseq",
+  "title": "MCP Logseq Server",
+  "description": "Model Context Protocol server providing programmatic access to Logseq graphs via SQLite queries and HTTP API. Exposes tools for querying tasks, creating/updating tasks, and resources for task data with automatic change notifications.",
+  "version": "1.0.0",
+  "websiteUrl": "https://github.com/slimslenderslacks/mcp-logseq",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/slimslenderslacks/mcp-logseq"
+  },
+  "icons": [
+    {
+      "url": "https://raw.githubusercontent.com/logseq/logseq/master/resources/icon.png",
+      "mimeType": "image/png",
+      "size": 512
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "docker.io/slimslenderslacks/mcp-logseq:latest",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--mount",
+          "value": "type=bind,src={graphs_path},dst=/root/logseq/graphs",
+          "description": "Mount Logseq graphs directory into the container",
+          "isRequired": true,
+          "variables": {
+            "graphs_path": {
+              "description": "Absolute path to the directory containing Logseq graphs on the host machine",
+              "format": "filepath",
+              "isRequired": true,
+              "placeholder": "/Users/username/logseq/graphs"
+            }
+          }
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "LOGSEQ_API_HOST",
+          "description": "Hostname where Logseq HTTP API is accessible (default: host.docker.internal for Docker Desktop)",
+          "default": "host.docker.internal",
+          "isSecret": false
+        },
+        {
+          "name": "LOGSEQ_API_PORT",
+          "description": "Port where Logseq HTTP API is listening",
+          "default": "12315",
+          "isSecret": false
+        },
+        {
+          "name": "LOGSEQ_API_AUTHORIZATION_TOKEN",
+          "description": "Authorization token for Logseq HTTP API (required if authentication is enabled in Logseq settings)",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
