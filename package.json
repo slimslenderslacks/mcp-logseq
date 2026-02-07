@@ -1,0 +1,32 @@
+{
+  "name": "mcp-logseq",
+  "version": "1.0.0",
+  "description": "Programmatic interaction with Logseq using SQLite database and HTTP API",
+  "scripts": {},
+  "keywords": [
+    "logseq",
+    "mcp",
+    "datascript",
+    "clojurescript",
+    "task-management"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/mcp-logseq.git"
+  },
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2"
+  },
+  "notes": {
+    "dependencies": "All dependencies come from parent Logseq installation at /Users/slim/slimslenderslacks/logseq",
+    "better-sqlite3": "Installed locally (native module for SQLite access)",
+    "nbb-logseq": "Used from graph-parser/node_modules (v1.2.173-feat-db-v31)",
+    "datascript": "Built into nbb-logseq",
+    "logseq-source": "Available via classpath in run-script.sh"
+  }
+}

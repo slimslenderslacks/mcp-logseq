@@ -1,0 +1,36 @@
+FROM node:20.10.0
+
+# Install git for cloning logseq repo
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Clone logseq repository
+RUN git clone --depth 1 https://github.com/logseq/logseq.git /app/logseq
+
+# Install dependencies in logseq/deps/graph-parser
+WORKDIR /app/logseq/deps/graph-parser
+RUN npm install
+
+# Copy mcp-logseq project files
+WORKDIR /app/mcp-logseq
+COPY package*.json ./
+COPY run-script.sh ./
+COPY scripts/ ./scripts/
+COPY deps/ ./deps/
+
+# Copy missing fractional-indexing file to logseq (not in official GitHub repo)
+RUN mkdir -p /app/logseq/src/logseq && \
+    cp ./deps/logseq/clj_fractional_indexing.cljc /app/logseq/src/logseq/
+
+# Install mcp-logseq dependencies
+RUN npm install
+
+# Make run-script.sh executable
+RUN chmod +x run-script.sh
+
+# Set environment variable for API host (can be overridden at runtime)
+ENV LOGSEQ_API_HOST=host.docker.internal
+
+# Use bash as entrypoint so we can run run-script.sh
+ENTRYPOINT ["/bin/bash"]
