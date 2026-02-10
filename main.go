@@ -132,6 +132,26 @@ type UpdateTaskStatusArgs struct {
 	Status string `json:"status"`
 }
 
+type ListPagesArgs struct {
+	Graph  string `json:"graph"`
+	Expand bool   `json:"expand"`
+}
+
+type GetPageArgs struct {
+	Graph    string `json:"graph"`
+	PageName string `json:"pageName"`
+}
+
+type ListTagsArgs struct {
+	Graph  string `json:"graph"`
+	Expand bool   `json:"expand"`
+}
+
+type ListPropertiesArgs struct {
+	Graph  string `json:"graph"`
+	Expand bool   `json:"expand"`
+}
+
 func registerTools(mcpServer *MCPServer) {
 	// Database Query Tools
 	mcp.AddTool(
@@ -139,6 +159,16 @@ func registerTools(mcpServer *MCPServer) {
 		&mcp.Tool{
 			Name:        "list_all_tasks",
 			Description: "List all tasks from a Logseq graph database. Returns task ID, UUID, title, status, and priority.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"graph": map[string]any{
+						"type":        "string",
+						"description": "The name of the Logseq graph (e.g., 'mcp', 'Demo')",
+					},
+				},
+				"required": []string{"graph"},
+			},
 		},
 		func(ctx context.Context, request *mcp.CallToolRequest, args ListAllTasksArgs) (*mcp.CallToolResult, any, error) {
 			return mcpServer.executeScript(ctx, "list_all_tasks.cljs", map[string]any{
@@ -152,6 +182,16 @@ func registerTools(mcpServer *MCPServer) {
 		&mcp.Tool{
 			Name:        "list_tasks_by_status",
 			Description: "List tasks grouped by status (Todo, Doing, Done, Backlog) from a Logseq graph.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"graph": map[string]any{
+						"type":        "string",
+						"description": "The name of the Logseq graph (e.g., 'mcp', 'Demo')",
+					},
+				},
+				"required": []string{"graph"},
+			},
 		},
 		func(ctx context.Context, request *mcp.CallToolRequest, args ListTasksByStatusArgs) (*mcp.CallToolResult, any, error) {
 			return mcpServer.executeScript(ctx, "list_tasks_by_status.cljs", map[string]any{
@@ -165,11 +205,136 @@ func registerTools(mcpServer *MCPServer) {
 		&mcp.Tool{
 			Name:        "find_tasks",
 			Description: "Find tasks matching specific criteria in a Logseq graph.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"graph": map[string]any{
+						"type":        "string",
+						"description": "The name of the Logseq graph (e.g., 'mcp', 'Demo')",
+					},
+				},
+				"required": []string{"graph"},
+			},
 		},
 		func(ctx context.Context, request *mcp.CallToolRequest, args FindTasksArgs) (*mcp.CallToolResult, any, error) {
 			return mcpServer.executeScript(ctx, "find_tasks.cljs", map[string]any{
 				"graph": args.Graph,
 			})
+		},
+	)
+
+	mcp.AddTool(
+		mcpServer.server,
+		&mcp.Tool{
+			Name:        "list_pages",
+			Description: "List all pages in a graph",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"graph": map[string]any{
+						"type":        "string",
+						"description": "The name of the Logseq graph (e.g., 'mcp', 'Demo')",
+					},
+					"expand": map[string]any{
+						"type":        "boolean",
+						"description": "Provide additional detail on each page (includes created-at and updated-at timestamps)",
+						"default":     false,
+					},
+				},
+				"required": []string{"graph"},
+			},
+		},
+		func(ctx context.Context, request *mcp.CallToolRequest, args ListPagesArgs) (*mcp.CallToolResult, any, error) {
+			expandStr := "false"
+			if args.Expand {
+				expandStr = "true"
+			}
+			return mcpServer.executeScriptWithArgs(ctx, "list_pages.cljs", args.Graph, []string{expandStr})
+		},
+	)
+
+	mcp.AddTool(
+		mcpServer.server,
+		&mcp.Tool{
+			Name:        "get_page",
+			Description: "Get a page's content including its blocks. A property and a tag are pages.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"graph": map[string]any{
+						"type":        "string",
+						"description": "The name of the Logseq graph (e.g., 'mcp', 'Demo')",
+					},
+					"pageName": map[string]any{
+						"type":        "string",
+						"description": "The page's name or UUID to retrieve. A property and a tag are pages.",
+					},
+				},
+				"required": []string{"graph", "pageName"},
+			},
+		},
+		func(ctx context.Context, request *mcp.CallToolRequest, args GetPageArgs) (*mcp.CallToolResult, any, error) {
+			return mcpServer.executeScriptWithArgs(ctx, "get_page.cljs", args.Graph, []string{args.PageName})
+		},
+	)
+
+	mcp.AddTool(
+		mcpServer.server,
+		&mcp.Tool{
+			Name:        "list_tags",
+			Description: "List all tags in a graph",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"graph": map[string]any{
+						"type":        "string",
+						"description": "The name of the Logseq graph (e.g., 'mcp', 'Demo')",
+					},
+					"expand": map[string]any{
+						"type":        "boolean",
+						"description": "Provide additional detail on each tag (e.g. their parents/extends and tag properties)",
+						"default":     false,
+					},
+				},
+				"required": []string{"graph"},
+			},
+		},
+		func(ctx context.Context, request *mcp.CallToolRequest, args ListTagsArgs) (*mcp.CallToolResult, any, error) {
+			expandStr := "false"
+			if args.Expand {
+				expandStr = "true"
+			}
+			return mcpServer.executeScriptWithArgs(ctx, "list_tags.cljs", args.Graph, []string{expandStr})
+		},
+	)
+
+	mcp.AddTool(
+		mcpServer.server,
+		&mcp.Tool{
+			Name:        "list_properties",
+			Description: "List all properties in a graph",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"graph": map[string]any{
+						"type":        "string",
+						"description": "The name of the Logseq graph (e.g., 'mcp', 'Demo')",
+					},
+					"expand": map[string]any{
+						"type":        "boolean",
+						"description": "Provide additional detail on each property (e.g. property type, cardinality)",
+						"default":     false,
+					},
+				},
+				"required": []string{"graph"},
+			},
+		},
+		func(ctx context.Context, request *mcp.CallToolRequest, args ListPropertiesArgs) (*mcp.CallToolResult, any, error) {
+			expandStr := "false"
+			if args.Expand {
+				expandStr = "true"
+			}
+			return mcpServer.executeScriptWithArgs(ctx, "list_properties.cljs", args.Graph, []string{expandStr})
 		},
 	)
 
@@ -179,6 +344,32 @@ func registerTools(mcpServer *MCPServer) {
 		&mcp.Tool{
 			Name:        "create_task",
 			Description: "Create a new task in Logseq via API. Requires Logseq to be running with HTTP API enabled.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"page": map[string]any{
+						"type":        "string",
+						"description": "The page name or date where the task should be created (e.g., 'Feb 7th, 2026' or 'Projects')",
+					},
+					"content": map[string]any{
+						"type":        "string",
+						"description": "The task content/title",
+					},
+					"status": map[string]any{
+						"type":        "string",
+						"description": "Task status: Todo, Doing, Done, Later, Now, Waiting, or Canceled",
+						"enum":        []string{"Todo", "Doing", "Done", "Later", "Now", "Waiting", "Canceled"},
+						"default":     "Todo",
+					},
+					"priority": map[string]any{
+						"type":        "string",
+						"description": "Task priority level",
+						"enum":        []string{"High", "Medium", "Low"},
+						"default":     "Medium",
+					},
+				},
+				"required": []string{"page", "content"},
+			},
 		},
 		func(ctx context.Context, request *mcp.CallToolRequest, args CreateTaskArgs) (*mcp.CallToolResult, any, error) {
 			result, metadata, err := mcpServer.executeAPIScript(ctx, "create_task_clean.cljs", map[string]any{
@@ -200,6 +391,16 @@ func registerTools(mcpServer *MCPServer) {
 		&mcp.Tool{
 			Name:        "complete_task",
 			Description: "Mark a task as complete (Done status) via API. Requires Logseq running.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"uuid": map[string]any{
+						"type":        "string",
+						"description": "The UUID of the task block to mark as complete",
+					},
+				},
+				"required": []string{"uuid"},
+			},
 		},
 		func(ctx context.Context, request *mcp.CallToolRequest, args CompleteTaskArgs) (*mcp.CallToolResult, any, error) {
 			result, metadata, err := mcpServer.executeAPIScript(ctx, "complete_task.cljs", map[string]any{
@@ -217,6 +418,21 @@ func registerTools(mcpServer *MCPServer) {
 		&mcp.Tool{
 			Name:        "update_task_status",
 			Description: "Update the status of a task via API. Requires Logseq running.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"uuid": map[string]any{
+						"type":        "string",
+						"description": "The UUID of the task block to update",
+					},
+					"status": map[string]any{
+						"type":        "string",
+						"description": "New task status",
+						"enum":        []string{"Todo", "Doing", "Done", "Later", "Now", "Waiting", "Canceled"},
+					},
+				},
+				"required": []string{"uuid", "status"},
+			},
 		},
 		func(ctx context.Context, request *mcp.CallToolRequest, args UpdateTaskStatusArgs) (*mcp.CallToolResult, any, error) {
 			result, metadata, err := mcpServer.executeAPIScript(ctx, "update_task_status.cljs", map[string]any{
@@ -309,6 +525,43 @@ func (m *MCPServer) executeScript(ctx context.Context, scriptName string, args m
 	// Parse and cache tasks if this is a task listing
 	if strings.Contains(scriptName, "task") {
 		m.parseTasks(graph, string(output))
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(output)},
+		},
+	}, nil, nil
+}
+
+func (m *MCPServer) executeScriptWithArgs(ctx context.Context, scriptName string, graph string, extraArgs []string) (*mcp.CallToolResult, any, error) {
+	if graph == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: "Error: graph parameter is required"},
+			},
+			IsError: true,
+		}, nil, nil
+	}
+
+	// Build command arguments: script name, graph, then any extra args
+	cmdArgs := []string{scriptName, graph}
+	cmdArgs = append(cmdArgs, extraArgs...)
+
+	// Execute the script
+	cmd := exec.CommandContext(ctx, "/app/mcp-logseq/run-script.sh", cmdArgs...)
+	cmd.Env = append(os.Environ(),
+		"HOME=/root",
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("Script execution failed: %v\nOutput: %s", err, string(output))},
+			},
+			IsError: true,
+		}, nil, nil
 	}
 
 	return &mcp.CallToolResult{

@@ -1,4 +1,10 @@
-FROM golang:1.23-bookworm AS go-builder
+FROM --platform=$BUILDPLATFORM golang:1.23-bookworm AS go-builder
+
+# Build arguments for cross-compilation
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /build
 
@@ -9,8 +15,8 @@ RUN go mod download
 # Copy Go source
 COPY main.go ./
 
-# Build the MCP server
-RUN CGO_ENABLED=0 GOOS=linux go build -o mcp-logseq-server .
+# Build the MCP server for the target architecture
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -o mcp-logseq-server .
 
 # Final stage - based on Node.js for script execution
 FROM node:20.10.0
