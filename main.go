@@ -48,7 +48,7 @@ func run() error {
 			apiPort = "12315"
 		}
 		log.Printf("⚠ WARNING: Logseq API not available: %v", err)
-		log.Println("⚠ Some features (create_task, complete_task, update_task_status) will not work")
+		log.Println("⚠ Some features (create_task, complete_task, update_task, add_content) will not work")
 		log.Println("⚠ To enable API features:")
 		log.Println("  1. Start Logseq on your host")
 		log.Println("  2. Enable HTTP API: Settings > Features > Developer Mode > HTTP APIs")
@@ -117,19 +117,25 @@ type ListTasksByStatusArgs struct {
 }
 
 type CreateTaskArgs struct {
-	Page     string `json:"page"`
-	Content  string `json:"content"`
-	Status   string `json:"status"`
-	Priority string `json:"priority"`
+	PageOrBlockID string `json:"pageOrBlockId"`
+	Content       string `json:"content"`
+	Status        string `json:"status"`
+	Priority      string `json:"priority"`
 }
 
 type CompleteTaskArgs struct {
 	UUID string `json:"uuid"`
 }
 
-type UpdateTaskStatusArgs struct {
-	UUID   string `json:"uuid"`
-	Status string `json:"status"`
+type UpdateTaskArgs struct {
+	UUID    string `json:"uuid"`
+	Status  string `json:"status"`
+	Content string `json:"content"`
+}
+
+type AddContentArgs struct {
+	PageOrBlockID string `json:"pageOrBlockId"`
+	Content       string `json:"content"`
 }
 
 type ListPagesArgs struct {
@@ -343,13 +349,13 @@ func registerTools(mcpServer *MCPServer) {
 		mcpServer.server,
 		&mcp.Tool{
 			Name:        "create_task",
-			Description: "Create a new task in Logseq via API. Requires Logseq to be running with HTTP API enabled.",
+			Description: "Create a new task in Logseq via API. Can create a top-level task on a page or a sub-task under an existing block. Requires Logseq to be running with HTTP API enabled.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"page": map[string]any{
+					"pageOrBlockId": map[string]any{
 						"type":        "string",
-						"description": "The page name or date where the task should be created (e.g., 'Feb 7th, 2026' or 'Projects')",
+						"description": "The page name, date, or block UUID where the task should be created. For top-level tasks, use a page name (e.g., 'Feb 7th, 2026' or 'Projects'). For sub-tasks, use the parent task's UUID.",
 					},
 					"content": map[string]any{
 						"type":        "string",
@@ -368,15 +374,15 @@ func registerTools(mcpServer *MCPServer) {
 						"default":     "Medium",
 					},
 				},
-				"required": []string{"page", "content"},
+				"required": []string{"pageOrBlockId", "content"},
 			},
 		},
 		func(ctx context.Context, request *mcp.CallToolRequest, args CreateTaskArgs) (*mcp.CallToolResult, any, error) {
 			result, metadata, err := mcpServer.executeAPIScript(ctx, "create_task_clean.cljs", map[string]any{
-				"page":     args.Page,
-				"content":  args.Content,
-				"status":   args.Status,
-				"priority": args.Priority,
+				"pageOrBlockId": args.PageOrBlockID,
+				"content":       args.Content,
+				"status":        args.Status,
+				"priority":      args.Priority,
 			})
 			if err == nil {
 				// Notify clients that resources have changed
@@ -416,8 +422,8 @@ func registerTools(mcpServer *MCPServer) {
 	mcp.AddTool(
 		mcpServer.server,
 		&mcp.Tool{
-			Name:        "update_task_status",
-			Description: "Update the status of a task via API. Requires Logseq running.",
+			Name:        "update_task",
+			Description: "Update a task's status and/or content via API. Requires Logseq running. At least one of status or content must be provided.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -427,17 +433,54 @@ func registerTools(mcpServer *MCPServer) {
 					},
 					"status": map[string]any{
 						"type":        "string",
-						"description": "New task status",
+						"description": "New task status (optional)",
 						"enum":        []string{"Todo", "Doing", "Done", "Later", "Now", "Waiting", "Canceled"},
 					},
+					"content": map[string]any{
+						"type":        "string",
+						"description": "New task content/title (optional)",
+					},
 				},
-				"required": []string{"uuid", "status"},
+				"required": []string{"uuid"},
 			},
 		},
-		func(ctx context.Context, request *mcp.CallToolRequest, args UpdateTaskStatusArgs) (*mcp.CallToolResult, any, error) {
-			result, metadata, err := mcpServer.executeAPIScript(ctx, "update_task_status.cljs", map[string]any{
-				"uuid":   args.UUID,
-				"status": args.Status,
+		func(ctx context.Context, request *mcp.CallToolRequest, args UpdateTaskArgs) (*mcp.CallToolResult, any, error) {
+			result, metadata, err := mcpServer.executeAPIScript(ctx, "update_task.cljs", map[string]any{
+				"uuid":    args.UUID,
+				"status":  args.Status,
+				"content": args.Content,
+			})
+			if err == nil {
+				go mcpServer.notifyResourcesChanged(ctx)
+			}
+			return result, metadata, err
+		},
+	)
+
+	mcp.AddTool(
+		mcpServer.server,
+		&mcp.Tool{
+			Name:        "add_content",
+			Description: "Add content (blocks) to a page or as children of an existing block via API. This is for general content, not tasks. Requires Logseq running.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"pageOrBlockId": map[string]any{
+						"type":        "string",
+						"description": "The page name, date, or block UUID where the content should be added. For top-level content, use a page name (e.g., 'Feb 7th, 2026' or 'Notes'). For child content, use the parent block's UUID.",
+					},
+					"content": map[string]any{
+						"type":        "string",
+						"description": "The content to add (supports markdown formatting)",
+					},
+				},
+				"required": []string{"pageOrBlockId", "content"},
+			},
+		},
+		func(ctx context.Context, request *mcp.CallToolRequest, args AddContentArgs) (*mcp.CallToolResult, any, error) {
+			result, metadata, err := mcpServer.executeAPIScript(ctx, "add_content.cljs", map[string]any{
+				"pageOrBlockId": args.PageOrBlockID,
+				"content":       args.Content,
 			})
 			if err == nil {
 				go mcpServer.notifyResourcesChanged(ctx)
@@ -577,15 +620,15 @@ func (m *MCPServer) executeAPIScript(ctx context.Context, scriptName string, arg
 
 	switch scriptName {
 	case "create_task_clean.cljs":
-		page, _ := args["page"].(string)
+		pageOrBlockId, _ := args["pageOrBlockId"].(string)
 		content, _ := args["content"].(string)
 		status, _ := args["status"].(string)
 		priority, _ := args["priority"].(string)
 
-		if page == "" || content == "" {
+		if pageOrBlockId == "" || content == "" {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
-					&mcp.TextContent{Text: "Error: page and content parameters are required"},
+					&mcp.TextContent{Text: "Error: pageOrBlockId and content parameters are required"},
 				},
 				IsError: true,
 			}, nil, nil
@@ -596,7 +639,7 @@ func (m *MCPServer) executeAPIScript(ctx context.Context, scriptName string, arg
 		if priority == "" {
 			priority = "Medium"
 		}
-		scriptArgs = []string{page, content, status, priority}
+		scriptArgs = []string{pageOrBlockId, content, status, priority}
 
 	case "complete_task.cljs", "get_task_info.cljs":
 		uuid, _ := args["uuid"].(string)
@@ -610,18 +653,45 @@ func (m *MCPServer) executeAPIScript(ctx context.Context, scriptName string, arg
 		}
 		scriptArgs = []string{uuid}
 
-	case "update_task_status.cljs":
+	case "update_task.cljs":
 		uuid, _ := args["uuid"].(string)
 		status, _ := args["status"].(string)
-		if uuid == "" || status == "" {
+		content, _ := args["content"].(string)
+
+		if uuid == "" {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
-					&mcp.TextContent{Text: "Error: uuid and status parameters are required"},
+					&mcp.TextContent{Text: "Error: uuid parameter is required"},
 				},
 				IsError: true,
 			}, nil, nil
 		}
-		scriptArgs = []string{uuid, status}
+
+		if status == "" && content == "" {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "Error: at least one of status or content must be provided"},
+				},
+				IsError: true,
+			}, nil, nil
+		}
+
+		scriptArgs = []string{uuid, status, content}
+
+	case "add_content.cljs":
+		pageOrBlockId, _ := args["pageOrBlockId"].(string)
+		content, _ := args["content"].(string)
+
+		if pageOrBlockId == "" || content == "" {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "Error: pageOrBlockId and content parameters are required"},
+				},
+				IsError: true,
+			}, nil, nil
+		}
+
+		scriptArgs = []string{pageOrBlockId, content}
 	}
 
 	// Execute the script
